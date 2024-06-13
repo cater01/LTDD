@@ -1,7 +1,7 @@
 import pandas as pd
-import random,time,csv
+import random, time, csv
 import numpy as np
-import math,copy,os
+import math, copy, os
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import train_test_split
@@ -19,16 +19,15 @@ from scipy import stats
 
 ## Load dataset
 from sklearn import preprocessing
-dataset_orig = pd.read_csv('../dataset/Student.csv')
+dataset_orig = pd.read_csv('datasets\\Student.csv')
 
-
-dataset_orig = dataset_orig.drop(['school','address','famsize','Pstatus','Mjob','Fjob','reason','guardian'],axis=1)
+dataset_orig = dataset_orig.drop(['school', 'address', 'famsize', 'Pstatus', 'Mjob', 'Fjob', 'reason', 'guardian'], axis=1)
 
 ## Drop NULL values
 dataset_orig = dataset_orig.dropna()
 
 ## calculate mean of age column
-mean = dataset_orig.loc[:,"age"].mean()
+mean = dataset_orig.loc[:, "age"].mean()
 
 dataset_orig['sex'] = np.where(dataset_orig['sex'] == 'M', 1, 0)
 
@@ -42,20 +41,20 @@ dataset_orig['higher'] = np.where(dataset_orig['higher'] == 'yes', 1, 0)
 dataset_orig['internet'] = np.where(dataset_orig['internet'] == 'yes', 1, 0)
 dataset_orig['romantic'] = np.where(dataset_orig['romantic'] == 'yes', 1, 0)
 
-mean = dataset_orig.loc[:,"G1"].mean()
+mean = dataset_orig.loc[:, "G1"].mean()
 dataset_orig['G1'] = np.where(dataset_orig['G1'] >= mean, 1, 0)
 
-mean = dataset_orig.loc[:,"G2"].mean()
+mean = dataset_orig.loc[:, "G2"].mean()
 dataset_orig['G2'] = np.where(dataset_orig['G2'] >= mean, 1, 0)
 
 ## Make goal column binary
-mean = dataset_orig.loc[:,"Probability"].mean()
+mean = dataset_orig.loc[:, "Probability"].mean()
 dataset_orig['Probability'] = np.where(dataset_orig['Probability'] >= mean, 1, 0)
 
 from sklearn.preprocessing import MinMaxScaler
 
 scaler = MinMaxScaler()
-dataset_orig = pd.DataFrame(scaler.fit_transform(dataset_orig),columns = dataset_orig.columns)
+dataset_orig = pd.DataFrame(scaler.fit_transform(dataset_orig), columns=dataset_orig.columns)
 
 np.random.seed(1)
 
@@ -74,18 +73,21 @@ DI_a = []
 SPD_a = []
 DI_b = []
 SPD_b = []
+IDI_a = []
+IDI_b = []
+PE_a = []
+PE_b = []
 ce_times = []
 
 for k in range(100):
     print('------the {}th turn------'.format(k))
-    dataset_orig_train, dataset_orig_test = train_test_split(dataset_orig, test_size=0.15, random_state=None,shuffle = True)
+    dataset_orig_train, dataset_orig_test = train_test_split(dataset_orig, test_size=0.15, random_state=None, shuffle=True)
 
     X_train, y_train = dataset_orig_train.loc[:, dataset_orig_train.columns != 'Probability'], dataset_orig_train['Probability']
-    X_test , y_test = dataset_orig_test.loc[:, dataset_orig_test.columns != 'Probability'], dataset_orig_test['Probability']
+    X_test, y_test = dataset_orig_test.loc[:, dataset_orig_test.columns != 'Probability'], dataset_orig_test['Probability']
 
     column_train = [column for column in X_train]
 
-    from sklearn.neural_network import MLPClassifier
     clf = LogisticRegression(C=1.0, penalty='l2', solver='liblinear', max_iter=100)
 
     from aif360.datasets import BinaryLabelDataset, StructuredDataset
@@ -128,6 +130,9 @@ for k in range(100):
     aod_b.append(class_metrics.average_odds_difference())
     eod_b.append(class_metrics.equal_opportunity_difference())
 
+    IDI_b.append(1 / class_metrics.disparate_impact())
+    PE_b.append(class_metrics.false_positive_rate_difference())
+
     slope_store = []
     intercept_store = []
     rvalue_store = []
@@ -141,7 +146,7 @@ for k in range(100):
     for i in column_train:
         flag = flag + 1
         if i != 'sex':
-            slope,intercept,rvalue,pvalue,stderr=stats.linregress(X_train['sex'], X_train[i])
+            slope, intercept, rvalue, pvalue, stderr = stats.linregress(X_train['sex'], X_train[i])
             rvalue_store.append(rvalue)
             pvalue_store.append(pvalue)
             if pvalue < 0.05:
@@ -155,34 +160,17 @@ for k in range(100):
     ce_times.append(times)
     ce_list.append(ce)
 
-    X_train = X_train.drop(['sex'],axis = 1)
+    X_train = X_train.drop(['sex'], axis=1)
 
     for i in range(len(column_u)):
         X_test[column_u[i]] = X_test[column_u[i]] - Linear_regression(X_test['sex'], slope_store[i], intercept_store[i])
 
-    X_test = X_test.drop(['sex'],axis = 1)
+    X_test = X_test.drop(['sex'], axis=1)
 
-
-    from aif360.datasets import BinaryLabelDataset, StructuredDataset
-    from aif360.algorithms.preprocessing import Reweighing
-    from aif360.metrics import ClassificationMetric
-    from aif360.metrics import BinaryLabelDatasetMetric
-
-    dataset_t = BinaryLabelDataset(favorable_label=1.0,
-                                   unfavorable_label=0.0,
-                                   df=dataset_orig_test,
-                                   label_names=['Probability'],
-                                   protected_attribute_names=['sex'],
-                                   )
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     dataset_pred = dataset_t.copy()
     dataset_pred.labels = y_pred
-    attr = dataset_t.protected_attribute_names[0]
-    idx = dataset_t.protected_attribute_names.index(attr)
-    privileged_groups = [{attr: dataset_pred.privileged_protected_attributes[idx][0]}]
-    unprivileged_groups = [{attr: dataset_pred.unprivileged_protected_attributes[idx][0]}]
-
     class_metrics = ClassificationMetric(dataset_t, dataset_pred, unprivileged_groups=unprivileged_groups,
                                          privileged_groups=privileged_groups)
     b_metrics = BinaryLabelDatasetMetric(dataset_pred, unprivileged_groups=unprivileged_groups,
@@ -203,7 +191,10 @@ for k in range(100):
     aod_a.append(class_metrics.average_odds_difference())
     eod_a.append(class_metrics.equal_opportunity_difference())
 
-#DI,SPD are the original value, different from the value reported in the paper.
+    IDI_a.append(1 / class_metrics.disparate_impact())
+    PE_a.append(class_metrics.false_positive_rate_difference())
+
+# DI, SPD are the original value, different from the value reported in the paper.
 print('---Original---')
 print('Aod before:', np.mean(np.abs(aod_b)))
 print('Eod before:', np.mean(np.abs(eod_b)))
@@ -212,13 +203,16 @@ print('Far before:', np.mean(false_b))
 print('recall before:', np.mean(recall_b))
 print('DI before:', np.mean(DI_b))
 print('SPD before:', np.mean(np.abs(SPD_b)))
+print('IDI before:', np.mean(np.abs(IDI_b)))
+print('PE before:', np.mean(np.abs(PE_b)))
 
 print('---LTDD---')
 print('Aod after:', np.mean(np.abs(aod_a)))
 print('Eod after:', np.mean(np.abs(eod_a)))
 print('Acc after:', np.mean(acc_a))
-print('Far after:', np.nanmean(false_a))
-print('recall after:', np.nanmean(recall_a))
+print('Far after:', np.mean(false_a))
+print('recall after:', np.mean(recall_a))
 print('DI after:', np.mean(DI_a))
 print('SPD after:', np.mean(np.abs(SPD_a)))
-
+print('IDI after:', np.mean(np.abs(IDI_a)))
+print('PE after:', np.mean(np.abs(PE_a)))
