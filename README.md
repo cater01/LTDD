@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Training Data Debugging for the Fairness of Machine Learning Software
 
 
@@ -58,3 +59,7 @@ from aif360.algorithms.preprocessing import DisparateImpactRemover
 ## Experimental settings
 * When training the model, we refer to Fairway's attribute selection before constructing ML software, which removes some inappropriate attributes, e.g., 'native-country' on Adult dataset.
 * In Discussion 3, when we use AOD and EOD, we refer to Fairway's usage and report after **taking the absolute value**, less absolute values |AOD| and |EOD| mean more fairness.
+=======
+# LTDD
+科研实践
+>>>>>>> 2e5001a466b96e9fddebdd8d0c3cf6b74173aea7
